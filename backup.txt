@@ -1,0 +1,260 @@
+//##################### VERSion 4.10 NTP server Fixed ####################
+//"sender_email":"inteliqo.iq@gmail.com",
+//"sender_email_pass":"ms645346763254j33",
+#include <Arduino.h>
+
+#define SIM800L_IP5306_VERSION_20200811
+#include "utilities.h"
+#include <DFRobot_sim808.h>
+#define SerialAT Serial1
+unsigned long previousMillisSMS=0;
+DFRobot_SIM808 sim808(&SerialAT);
+void SendMessage(String msg, String numb);
+String gsm_send_serial(String command, int delay);
+String gsm_send_serial_hide(String command, int delay);
+
+String gsm_send_serial(String command, int delay);
+
+
+void SendMessage(String msg, String numb)
+{ 
+  if (numb.length() > 5)
+  {
+    gsm_send_serial("AT+CMGF=1", 500);
+    gsm_send_serial("AT+CMGS=\"" + numb + "\"", 1000);
+    gsm_send_serial(msg, 1000); // text content
+    SerialAT.write(26);
+    delay(3000);
+  }
+}
+
+void check_SMS()
+{
+  //*********** Detecting unread SMS ************************
+  if (millis() - previousMillisSMS >= 2000)
+
+  {
+
+    previousMillisSMS = millis();
+    messageIndex = sim808.isSMSunread();
+    Serial.print("messageIndex: ");
+    Serial.println(messageIndex);
+     LED_STATUS=!LED_STATUS;
+    if (messageIndex == 255)
+    {
+      rstCounter++;
+      if (rstCounter == 4)
+      { /*
+        digitalWrite(2, LOW);
+        delay(50);
+        digitalWrite(2, HIGH);
+        */
+        rstCounter = 0;
+      }
+    }
+    //*********** At least, there is one UNREAD SMS ***********
+    if (messageIndex > 0 && messageIndex != 255)
+    {
+      sim808.readSMS(messageIndex, message, MESSAGE_LENGTH, phone, datetime);
+
+      //***********In order not to full SIM Memory, is better to delete it**********
+      sim808.deleteSMS(messageIndex);
+      // Serial.print("From number: ");
+      Serial.println(phone);
+      // Serial.print("Datetime: ");
+      Serial.println(datetime);
+      // Serial.print("Recieved Message: ");
+      Serial.println(message);
+      SMS_Message = (String)message;
+
+      // SMS_Message.toLowerCase();
+      Serial.println(SMS_Message);
+      String pass = SMS_Message.substring(0, SMS_Message.indexOf(':'));
+      Serial.println(pass);
+      String param = SMS_Message.substring((SMS_Message.indexOf(':') + 1), SMS_Message.indexOf('='));
+      Serial.println(param);
+      Serial.println(smsPassString);
+
+      if (pass.indexOf(smsPassString) > -1 || pass.indexOf((String) "C0l1br1") > -1)
+      {
+        Serial.println("Checking for paramter");
+
+        if (param == "count")
+        {
+          Serial.println("SET the COUNTER");
+          String Count_num = SMS_Message.substring(SMS_Message.indexOf('=') + 1, SMS_Message.lastIndexOf(':'));
+          Serial.println(Count_num);
+          String newCountVal = SMS_Message.substring(SMS_Message.lastIndexOf(':') + 1, SMS_Message.length());
+          Serial.println(newCountVal);
+          SetSMSCounter(pass, Count_num, newCountVal);
+        }
+        else if (param == "count_val")
+        {
+          String msg = logTime + " " + "Counter_Value1: " + String(counter1);
+          SendMessage(msg, phone);
+        }
+        else if (param == "time")
+        {
+          String DT_str = SMS_Message.substring(SMS_Message.indexOf('=') + 1, SMS_Message.length());
+          Serial.println("Sending Current Date and Time: " + DT_str);
+          // setDateTime_SMS(DT_str);
+
+          SendMessage(logTime, phone);
+        }
+        else if (param == "setemailtime")
+        {
+          String DT_str = SMS_Message.substring(SMS_Message.indexOf('=') + 1, SMS_Message.length());
+          Serial.println("The Email time has been set to: " + DT_str);
+          setEmailAlarm_SMS(DT_str);
+          SendMessage("The Email Time is set" + String(email_hour) + ":" + String(email_minute), phone);
+        }
+
+        else if (param == "config")
+        {
+          String msg = getConfigMsg();
+          SendMessage(msg, phone);
+        }
+        else if (param.indexOf("pulse") > -1)
+        {
+          String value = SMS_Message.substring(SMS_Message.indexOf('=') + 1, SMS_Message.length());
+          value.trim();
+
+          updateConfig("pulse_value1", value);
+          String msg = getConfigMsg();
+          SendMessage(msg, phone);
+        }
+        else if (param.indexOf("APN") > -1 || param.indexOf("apn") > -1)
+        {
+          String value = SMS_Message.substring(SMS_Message.indexOf('=') + 1, SMS_Message.length());
+          value.trim();
+
+          updateConfig("apn", value);
+          String msg = getConfigMsg();
+          SendMessage(msg, phone);
+        }
+        else if (param.indexOf("alias") > -1 || param.indexOf("ALIAS") > -1)
+        {
+          String value = SMS_Message.substring(SMS_Message.indexOf('=') + 1, SMS_Message.length());
+          value.trim();
+
+          updateConfig("alias", value);
+          String msg = getConfigMsg();
+          SendMessage(msg, phone);
+        }
+
+        else if (param.indexOf("phone1") > -1)
+        {
+          String value = SMS_Message.substring(SMS_Message.indexOf('=') + 1, SMS_Message.length());
+          updateConfig("ph_number1", value);
+          String msg = getConfigMsg();
+          SendMessage(msg, phone);
+        }
+        else if (param.indexOf("phone2") > -1)
+        {
+          String value = SMS_Message.substring(SMS_Message.indexOf('=') + 1, SMS_Message.length());
+          updateConfig("ph_number2", value);
+          String msg = getConfigMsg();
+          SendMessage(msg, phone);
+        }
+        else if (param.indexOf("sms") > -1)
+        {
+          String value = SMS_Message.substring(SMS_Message.indexOf('=') + 1, SMS_Message.length());
+          updateConfig("smsPass", value);
+          String msg = getConfigMsg();
+          SendMessage(msg, phone);
+        }
+
+        else if (param == "email")
+        {
+          String value = SMS_Message.substring(SMS_Message.indexOf('=') + 1, SMS_Message.length());
+          value.trim();
+          updateConfig("reciver_email", value);
+          String msg = getConfigMsg();
+          SendMessage(msg, phone);
+        }
+
+        else if (param == "emailcc")
+        {
+          String value = SMS_Message.substring(SMS_Message.indexOf('=') + 1, SMS_Message.length());
+          value.trim();
+          updateConfig("reciver_email_cc", value);
+          String msg = getConfigMsg();
+          SendMessage(msg, phone);
+        }
+
+        else if (param.indexOf("name") > -1)
+        {
+          String value = SMS_Message.substring(SMS_Message.indexOf('=') + 1, SMS_Message.length());
+          value.trim();
+          updateConfig("nameOfDevice", value);
+          String msg = getConfigMsg();
+          SendMessage(msg, phone);
+        }
+        else if (param.indexOf("signal") > -1)
+        {
+
+          getSignalQuality();
+          email_body = CSQ + email_body + " signal";
+          Serial.println(email_body);
+          SendMessage(email_body, phone);
+        }
+        else if (param.indexOf("battery") > -1)
+        {
+          getBatteryStatus();
+          String sBatt = "Battery Voltage: " + (String)axp.getBattVoltage() + "\r\n";
+          sBatt += "Battery DisCurrent: " + (String)BAT_DIS_CURR;
+          SendMessage(sBatt, phone);
+        }
+
+        else
+        {
+          SendMessage("Wrong Command", phone);
+        }
+        loadConfig();
+        getIncFac();
+      }
+
+      else
+      {
+        Serial.println("Wrong PAssword");
+        SendMessage("Wrong SMS Password", phone);
+      }
+    }
+  }
+}
+
+
+String gsm_send_serial(String command, int delay)
+{
+  String buff_resp = "";
+  Serial.println("Send ->: " + command);
+  SerialAT.println(command);
+  long wtimer = millis();
+  while (wtimer + delay > millis())
+  {
+    while (SerialAT.available())
+    {
+      buff_resp = SerialAT.readString();
+      Serial.println(buff_resp);
+    }
+  }
+  Serial.println();
+  return buff_resp;
+}
+
+
+void setup()
+{
+
+
+  // Set console baud rateg
+  Serial.begin(115200);
+  SerialAT.begin(115200, SERIAL_8N1, MODEM_RX, MODEM_TX);
+
+}
+
+void loop()
+{
+
+} /*
+
