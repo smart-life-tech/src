@@ -5,7 +5,7 @@
 #include "stepper.h"
 #define SIM800L_AXP192_VERSION_20200327
 #include "utilities.h"
-#define SerialAT Serial
+#define SerialAT Serial1
 char receivedSMS[160]; // Buffer to store received SMS
 char *paramValue;
 void sendSMS(String msg);
@@ -101,7 +101,7 @@ void setup()
   // attachInterrupt(BUTTON_1, isr1,ONLOW);
   delay(5000);
   // Set GSM module baud rate and UART pins
-  // SerialAT.begin(115200, SERIAL_8N1, MODEM_RX, MODEM_TX);
+  SerialAT.begin(115200, SERIAL_8N1, MODEM_RX, MODEM_TX);
   Serial.println("Initializing...");
   delay(1000);
 
